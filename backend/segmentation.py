@@ -208,46 +208,44 @@ def _fill_and_hull(binary: np.ndarray) -> np.ndarray:
     _have_scipy = False
     _have_skimage = False
     try:
-        from scipy.ndimage import binary_fill_holes, label  # noqa: F401
-        _have_scipy = True
+        from scipy.ndimage import binary_fill_holes, label as _scipy_label
+        _HAVE_SCIPY = True
     except ImportError:
-        pass
+        _HAVE_SCIPY = False
+
     try:
-        from skimage.morphology import convex_hull_image    # noqa: F401
-        _have_skimage = True
+        from skimage.morphology import convex_hull_image
+        _HAVE_SKIMAGE = True
     except ImportError:
-        pass
+        _HAVE_SKIMAGE = False
 
-    if not _have_scipy:
-        logger.debug("scipy not available — returning raw binary mask (no morphological fill)")
-        return binary.astype(np.float32)
 
-    from scipy.ndimage import binary_fill_holes, label
+    def _fill_and_hull(binary: np.ndarray) -> np.ndarray:
+        """...(docstring unchanged)..."""
+        if not _HAVE_SCIPY:
+            logger.debug("scipy not available — returning raw binary mask")
+            return binary.astype(np.float32)
 
-    filled = binary_fill_holes(binary.astype(bool))
+        filled = binary_fill_holes(binary.astype(bool))
 
-    if not _have_skimage:
-        logger.debug("scikit-image not available — returning hole-filled mask (no convex hull)")
-        return filled.astype(np.float32)
+        if not _HAVE_SKIMAGE:
+            logger.debug("scikit-image not available — returning hole-filled mask")
+            return filled.astype(np.float32)
 
-    from skimage.morphology import convex_hull_image
+        labeled, n_components = _scipy_label(filled)
+        result = np.zeros_like(filled, dtype=np.float32)
 
-    # Label connected components (typically: left lobe, right lobe)
-    labeled, n_components = label(filled)
-    result = np.zeros_like(filled, dtype=np.float32)
+        for comp_idx in range(1, n_components + 1):
+            component = labeled == comp_idx
+            if component.sum() < 50:
+                continue
+            try:
+                hulled = convex_hull_image(component)
+                result = np.logical_or(result, hulled).astype(np.float32)
+            except Exception:
+                result = np.logical_or(result, component).astype(np.float32)
 
-    for comp_idx in range(1, n_components + 1):
-        component = labeled == comp_idx
-        if component.sum() < 50:           # ignore tiny noise blobs
-            continue
-        try:
-            hulled = convex_hull_image(component)
-            result = np.logical_or(result, hulled).astype(np.float32)
-        except Exception:
-            # convex_hull_image can fail on degenerate shapes — fall back gracefully
-            result = np.logical_or(result, component).astype(np.float32)
-
-    return result
+        return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

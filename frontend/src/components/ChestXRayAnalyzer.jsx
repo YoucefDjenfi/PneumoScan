@@ -789,7 +789,7 @@ export default function ChestXRayAnalyzer() {
      whether shortcut-learning bias-reduction is active.
   ──────────────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    fetch('http://localhost:8000/health')
+    fetch('http://127.0.0.1:8000/health')
       .then(r => r.json())
       .then(d => setSegmenterReady(!!d.segmenter_ready))
       .catch(() => setSegmenterReady(false));
@@ -895,7 +895,7 @@ export default function ChestXRayAnalyzer() {
     fd.append('file', f); // key matches FastAPI: file: UploadFile = File(...)
 
     try {
-      const res = await fetch('http://localhost:8000/predict', { method: 'POST', body: fd });
+      const res = await fetch('http://127.0.0.1:8000/predict', { method: 'POST', body: fd });
       if (!res.ok) {
         const txt = await res.text().catch(() => res.statusText);
         throw new Error(`Server ${res.status}: ${txt}`);
